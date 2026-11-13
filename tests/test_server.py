@@ -69,9 +69,9 @@ def test_json_safe() -> None:
 
 def test_cli_watch(capsys: pytest.CaptureFixture[str]) -> None:
     ret = cli_main(["watch"])
-    assert ret == 2
+    assert ret == 1
     captured = capsys.readouterr()
-    assert "watch is not implemented yet" in captured.err
+    assert "Missing ED_API_TOKEN" in captured.err
 
 
 def test_cli_check_auth_error(
