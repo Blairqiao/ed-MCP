@@ -133,3 +133,43 @@ def test_cli_check_success(
         assert "Alice" in captured.out
         assert "101  CS101  Intro CS" in captured.out
         assert "OLD" not in captured.out
+
+
+def test_call_tool_unannotated_lists() -> None:
+    mcp = FastMCP("test-server")
+
+    @mcp.tool()
+    def one():
+        return [{"a": 1}]
+
+    @mcp.tool()
+    def none():
+        return []
+
+    assert call_tool(mcp, "one") == [{"a": 1}]
+    assert call_tool(mcp, "none") == []
+
+
+def test_cli_check_missing_token(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("ED_API_TOKEN", "")
+    monkeypatch.setenv("ED_STATE_DIR", str(tmp_path))
+    assert cli_main(["check"]) == 1
+    assert TOKEN_HELP in capsys.readouterr().err
+
+
+def test_cli_check_network_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("ED_API_TOKEN", "good-token")
+    monkeypatch.setenv("ED_STATE_DIR", str(tmp_path))
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("offline")
+
+    with patch("ed_mcp.cli.EdClient", return_value=make_client(handler)):
+        assert cli_main(["check"]) == 1
+    err = capsys.readouterr().err
+    assert "offline" in err and "good-token" not in err

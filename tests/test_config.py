@@ -110,3 +110,8 @@ def test_read_only_truthy(tmp_path: Path) -> None:
             }
         )
         assert s.read_only is False
+
+
+def test_settings_repr_hides_token(tmp_path: Path) -> None:
+    settings = load_settings(env={"ED_API_TOKEN": "s3cret-token", "ED_STATE_DIR": str(tmp_path)})
+    assert "s3cret-token" not in repr(settings)

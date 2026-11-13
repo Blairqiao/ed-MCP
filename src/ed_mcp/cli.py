@@ -3,8 +3,8 @@
 import argparse
 import sys
 
-from ed_mcp.client import EdAuthError, EdClient
-from ed_mcp.config import TOKEN_HELP, load_settings
+from ed_mcp.client import EdAuthError, EdClient, EdError
+from ed_mcp.config import TOKEN_HELP, ConfigError, load_settings
 from ed_mcp.server import build_server
 from ed_mcp.watch import main as watch_main
 
@@ -43,27 +43,31 @@ def main(argv: list[str] | None = None) -> int:
     elif args.subcommand == "check":
         try:
             settings = load_settings()
-            client = EdClient(
-                settings.api_token,
-                settings.base_url,
-                static_base_url=settings.static_base_url,
-            )
+        except ConfigError as exc:
+            print(exc, file=sys.stderr)
+            return 1
+        client = EdClient(
+            settings.api_token,
+            settings.base_url,
+            static_base_url=settings.static_base_url,
+        )
+        try:
             data = client.get_user()
-            user_info = data.get("user", {})
-            user_name = user_info.get("name", "Unknown")
-            print(user_name)
-            courses = data.get("courses", [])
-            for c in courses:
-                course = c.get("course", {})
-                if course.get("status") == "active":
-                    cid = course.get("id")
-                    code = course.get("code")
-                    name = course.get("name")
-                    print(f"{cid}  {code}  {name}")
-            return 0
         except EdAuthError:
             print(TOKEN_HELP, file=sys.stderr)
             return 1
+        except EdError as exc:
+            print(f"Ed API error: {exc.message}", file=sys.stderr)
+            return 1
+        finally:
+            client.close()
+        user_info = data.get("user") or {}
+        print(user_info.get("name", "Unknown"))
+        for c in data.get("courses") or []:
+            course = c.get("course") or {}
+            if course.get("status") == "active":
+                print(f"{course.get('id')}  {course.get('code')}  {course.get('name')}")
+        return 0
     elif args.subcommand == "watch":
         return watch_main(unknown)
     else:

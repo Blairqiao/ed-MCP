@@ -206,3 +206,18 @@ def test_read_endpoints_and_remaining_writes():
     assert calls[-1][:2] == ("POST", "/api/threads/1/accept/5")
     client.delete_thread(1)
     assert calls[-1][:2] == ("DELETE", "/api/threads/1")
+
+
+def test_non_json_success_and_retry_cap():
+    client = make_client(lambda req: httpx.Response(200, text="<html>ok</html>"))
+    with pytest.raises(EdError, match="non-JSON"):
+        client.get_user()
+    sleeps = []
+    responses = iter(
+        [httpx.Response(503, headers={"Retry-After": "3600"}), httpx.Response(200, json={})]
+    )
+    client = EdClient(
+        "t", transport=httpx.MockTransport(lambda req: next(responses)), sleep=sleeps.append
+    )
+    assert client.get_user() == {}
+    assert sleeps == [60.0]

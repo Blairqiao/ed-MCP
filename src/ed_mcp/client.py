@@ -35,6 +35,9 @@ ThreadAction = Literal[
 CommentAction = Literal["endorse", "unendorse"]
 
 
+MAX_RETRY_DELAY = 60.0  # cap Retry-After so a tool call never blocks for minutes
+
+
 class EdClient:
     def __init__(
         self,
@@ -76,7 +79,10 @@ class EdClient:
                 payload = response.json() if response.content else None
             except ValueError:
                 if response.is_success:
-                    raise
+                    raise EdError(
+                        f"{method} {path}: {response.status_code} unexpected non-JSON response",
+                        status=response.status_code,
+                    ) from None
                 payload = None
             error_payload = payload if isinstance(payload, dict) else {}
             code = error_payload.get("code")
@@ -96,7 +102,7 @@ class EdClient:
                         delay = (date - datetime.now(UTC)).total_seconds()
                     except (TypeError, ValueError, OverflowError):
                         delay = float(2**attempt)
-                self._sleep(max(0.0, delay))
+                self._sleep(min(MAX_RETRY_DELAY, max(0.0, delay)))
                 continue
             if not response.is_success or code == "bad_token":
                 message = self._redact(

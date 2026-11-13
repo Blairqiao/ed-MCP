@@ -8,6 +8,7 @@ from typing import Any
 
 import httpx
 from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp.exceptions import ToolError
 
 from ed_mcp.client import EdClient
 from ed_mcp.config import Settings, load_settings
@@ -49,37 +50,21 @@ def make_ctx(
 
 
 def call_tool(mcp: FastMCP, name: str, **args: Any) -> Any:
-    """Call an MCP tool and normalise result to Python return value."""
-    res = asyncio.run(mcp.call_tool(name, args))
+    """Call an MCP tool and return its Python return value.
 
-    if isinstance(res, tuple):
-        content, structured = res
-        if structured is not None:
-            if isinstance(structured, dict) and "result" in structured:
-                return structured["result"]
-            return structured
-        res = content
+    Runs the tool through FastMCP's argument validation, checks that FastMCP can convert the
+    result, and checks the result is JSON-serialisable (round-tripped through json). Reading the
+    raw return value avoids the content-list ambiguity for tools without a return annotation,
+    where FastMCP splits a list into one content block per item ([] -> no blocks, [x] -> x).
+    Tool errors surface as ToolError.
+    """
 
-    if isinstance(res, list):
-        if not res:
-            return None
-        if len(res) == 1:
-            item = res[0]
-            text = getattr(item, "text", str(item))
-            try:
-                return json.loads(text)
-            except Exception:
-                return text
-        else:
-            parsed = []
-            for item in res:
-                text = getattr(item, "text", str(item))
-                try:
-                    parsed.append(json.loads(text))
-                except Exception:
-                    parsed.append(text)
-            return parsed
+    async def run() -> Any:
+        tool = mcp._tool_manager.get_tool(name)
+        if tool is None:
+            raise ToolError(f"Unknown tool: {name}")
+        result = await tool.run(args, context=mcp.get_context())
+        tool.fn_metadata.convert_result(result)
+        return result
 
-    if isinstance(res, dict) and "result" in res:
-        return res["result"]
-    return res
+    return json.loads(json.dumps(asyncio.run(run())))

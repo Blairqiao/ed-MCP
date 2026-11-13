@@ -3,7 +3,7 @@
 import os
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 TOKEN_HELP = "Create a token at https://edstem.org/us/settings/api-tokens and set ED_API_TOKEN."
@@ -15,7 +15,7 @@ class ConfigError(Exception):
 
 @dataclass(frozen=True)
 class Settings:
-    api_token: str
+    api_token: str = field(repr=False)  # keep the token out of reprs, logs, tracebacks
     region: str  # "us", "au", ...
     base_url: str  # always ends with "/"
     static_base_url: str  # always ends with "/"
