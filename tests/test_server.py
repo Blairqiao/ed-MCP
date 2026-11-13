@@ -1,14 +1,15 @@
 """Tests for server factory and tool call helpers."""
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
+import httpx
 import pytest
-from conftest import call_tool, make_settings
+from conftest import call_tool, make_client, make_settings
 from mcp.server.fastmcp import FastMCP
 
 from ed_mcp.cli import main as cli_main
-from ed_mcp.client import EdAuthError, EdNotFoundError
+from ed_mcp.client import EdNotFoundError
 from ed_mcp.config import TOKEN_HELP
 from ed_mcp.server import SERVER_INSTRUCTIONS, build_server
 from ed_mcp.tools._common import handle_ed_errors, json_safe
@@ -79,11 +80,12 @@ def test_cli_check_auth_error(
     monkeypatch.setenv("ED_API_TOKEN", "bad-token")
     monkeypatch.setenv("ED_STATE_DIR", str(tmp_path))
 
-    with patch("ed_mcp.cli.EdClient") as mock_client_cls:
-        instance = MagicMock()
-        instance.get_user.side_effect = EdAuthError("auth failed", status=401)
-        mock_client_cls.return_value = instance
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/api/user"
+        return httpx.Response(401, json={"message": "auth failed"})
 
+    with patch("ed_mcp.cli.EdClient", return_value=make_client(handler)):
         ret = cli_main(["check"])
         assert ret == 1
         captured = capsys.readouterr()
@@ -96,17 +98,35 @@ def test_cli_check_success(
     monkeypatch.setenv("ED_API_TOKEN", "good-token")
     monkeypatch.setenv("ED_STATE_DIR", str(tmp_path))
 
-    with patch("ed_mcp.cli.EdClient") as mock_client_cls:
-        instance = MagicMock()
-        instance.get_user.return_value = {
-            "user": {"name": "Alice"},
-            "courses": [
-                {"course": {"id": 101, "code": "CS101", "name": "Intro CS", "status": "active"}},
-                {"course": {"id": 999, "code": "OLD", "name": "Archived CS", "status": "archived"}},
-            ],
-        }
-        mock_client_cls.return_value = instance
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/api/user"
+        return httpx.Response(
+            200,
+            json={
+                "user": {"name": "Alice"},
+                "courses": [
+                    {
+                        "course": {
+                            "id": 101,
+                            "code": "CS101",
+                            "name": "Intro CS",
+                            "status": "active",
+                        }
+                    },
+                    {
+                        "course": {
+                            "id": 999,
+                            "code": "OLD",
+                            "name": "Archived CS",
+                            "status": "archived",
+                        }
+                    },
+                ],
+            },
+        )
 
+    with patch("ed_mcp.cli.EdClient", return_value=make_client(handler)):
         ret = cli_main(["check"])
         assert ret == 0
         captured = capsys.readouterr()
