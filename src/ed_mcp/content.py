@@ -16,6 +16,7 @@ def _inline(text: str) -> str:
     text = html.escape(text, quote=True).replace("&#x27;", "'")
     text = re.sub(r"\*\*(.+?)\*\*", r"<bold>\1</bold>", text)
     text = re.sub(r"(?<!\*)\*(.+?)\*(?!\*)", r"<italic>\1</italic>", text)
+    text = re.sub(r"!\[([^\]]*)\]\(([^)]+)\)", r'<link href="\2">\1</link>', text)
     text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<link href="\2">\1</link>', text)
     text = re.sub(r"\$([^$]+)\$", r"<math>\1</math>", text)
     return re.sub(r"\x00(\d+)\x00", lambda m: codes[int(m.group(1))], text)
@@ -66,6 +67,9 @@ def markdown_to_ed_xml(text: str) -> str:
             i -= 1
             style = "bullet" if bullet else "number"
             blocks.append(f'<list style="{style}">{"".join(items)}</list>')
+        elif match := re.match(r"^\s*!\[[^\]]*\]\(([^)\s]+)\)\s*$", line):
+            src = html.escape(match.group(1), quote=True)
+            blocks.append(f'<figure><image src="{src}"/></figure>')
         else:
             blocks.append(f"<paragraph>{_inline(line)}</paragraph>")
         i += 1

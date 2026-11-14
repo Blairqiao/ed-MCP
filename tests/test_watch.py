@@ -65,3 +65,30 @@ def test_auth_from_course(monkeypatch, tmp_path, capsys):
     assert watch.main(["--once"]) == 1
     assert TOKEN_HELP in capsys.readouterr().err
     assert issubclass(EdAuthError, Exception)
+
+
+def test_transient_error_keeps_polling(monkeypatch, tmp_path, capsys):
+    from ed_mcp.client import EdError
+
+    monkeypatch.setattr(watch, "load_settings", lambda: make_settings(tmp_path))
+    monkeypatch.setattr(watch, "EdClient", lambda *a, **k: SimpleNamespace(close=lambda: None))
+    monkeypatch.setattr(watch, "default_store", lambda s: SimpleNamespace(close=lambda: None))
+    calls = []
+
+    def check(*a, **k):
+        calls.append(1)
+        if len(calls) == 1:
+            raise EdError("GET user: connection refused")
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(watch, "check_new_posts", check)
+    monkeypatch.setattr(watch.time, "sleep", lambda s: None)
+    assert watch.main([]) == 0
+    assert len(calls) == 2
+    assert "connection refused" in capsys.readouterr().err
+
+    calls.clear()
+    monkeypatch.setattr(
+        watch, "check_new_posts", lambda *a, **k: (_ for _ in ()).throw(EdError("down"))
+    )
+    assert watch.main(["--once"]) == 1

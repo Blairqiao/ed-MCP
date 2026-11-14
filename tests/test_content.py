@@ -40,3 +40,14 @@ def test_text_and_links():
         ("https://bare", "url"),
     ]
     assert ed_xml_to_text(None) == ""
+
+
+def test_markdown_image():
+    from ed_mcp.content import markdown_to_ed_xml
+
+    url = "https://static.us.edusercontent.com/files/abc"
+    assert markdown_to_ed_xml(f"![a.png]({url})") == (
+        f'<document version="2.0"><figure><image src="{url}"/></figure></document>'
+    )
+    inline = markdown_to_ed_xml(f"see ![a.png]({url}) here")
+    assert "!" not in inline and f'<link href="{url}">a.png</link>' in inline

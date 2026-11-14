@@ -8,7 +8,7 @@ import time
 
 import httpx
 
-from ed_mcp.client import EdAuthError, EdClient
+from ed_mcp.client import EdAuthError, EdClient, EdError
 from ed_mcp.config import TOKEN_HELP, ConfigError, load_settings
 from ed_mcp.monitor import check_new_posts, default_store
 
@@ -47,13 +47,23 @@ def main(argv: list[str] | None = None) -> int:
         )
         store = default_store(settings)
         while True:
-            result = check_new_posts(
-                client,
-                store,
-                region=settings.region,
-                course_ids=args.course,
-                backfill=args.backfill,
-            )
+            try:
+                result = check_new_posts(
+                    client,
+                    store,
+                    region=settings.region,
+                    course_ids=args.course,
+                    backfill=args.backfill,
+                )
+            except EdAuthError:
+                raise
+            except EdError as exc:
+                # Network drops and Ed outages are transient; keep polling.
+                print(f"Check failed: {exc}", file=sys.stderr, flush=True)
+                if args.once:
+                    return 1
+                time.sleep(args.interval)
+                continue
             if getattr(result, "auth_failed", False):
                 print(TOKEN_HELP, file=sys.stderr)
                 return 1
