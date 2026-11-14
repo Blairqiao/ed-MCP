@@ -18,7 +18,7 @@ uv run ed-mcp check
 For Claude Code, substitute your token and use the absolute project path:
 
 ```sh
-claude mcp add ed-discussion -e ED_API_TOKEN='<token>' -- uv --directory /Users/blair/Desktop/project/ed-MCP run ed-mcp serve
+claude mcp add ed-discussion -e ED_API_TOKEN='<token>' -- uv --directory /Users/blair/Desktop/Projects/ed-MCP run ed-mcp serve
 ```
 
 A generic MCP configuration is:
@@ -28,7 +28,7 @@ A generic MCP configuration is:
   "mcpServers": {
     "ed-discussion": {
       "command": "uv",
-      "args": ["--directory", "/Users/blair/Desktop/project/ed-MCP", "run", "ed-mcp", "serve"],
+      "args": ["--directory", "/Users/blair/Desktop/Projects/ed-MCP", "run", "ed-mcp", "serve"],
       "env": {"ED_API_TOKEN": "..."}
     }
   }
@@ -105,7 +105,7 @@ To run it at login on macOS, save the following as `~/Library/LaunchAgents/com.u
   <key>ProgramArguments</key>
   <array>
     <string>/Users/blair/.local/bin/uv</string>
-    <string>--directory</string><string>/Users/blair/Desktop/project/ed-MCP</string>
+    <string>--directory</string><string>/Users/blair/Desktop/Projects/ed-MCP</string>
     <string>run</string><string>ed-mcp</string><string>watch</string>
   </array>
   <key>RunAtLoad</key><true/>
